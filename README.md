@@ -1,6 +1,10 @@
 # red-app
 
-This is an example of how to use RedStone Oracle on Solana to fetch prices
+This is an example of how to use RedStone Oracle on Solana to fetch prices.
+It's created for education purpose : to help people integrate RedStone in their programs/apps
+
+It's just begining. Going to extend README and add comments to programs.
+Also planing to create UI (ReactJS) to fetch prices and push them (in case of push model)
 
 ### Feed accounts
 
