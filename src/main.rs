@@ -3,7 +3,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_sdk::{ commitment_config::CommitmentConfig, pubkey::Pubkey };
 use axum::{ extract::State, response::IntoResponse, routing::get, Json, Router };
 use serde::Serialize;
-use std::{ net::SocketAddr, str::FromStr };
+use std::{ str::FromStr };
 use tower_http::cors::{ CorsLayer, Any };
 
 /// RedStone PriceAdapter program IDs
@@ -40,7 +40,6 @@ fn make_price_seed() -> [u8; 32] {
     s
 }
 
-/// feed id padded to 32 bytes
 fn feed_id_bytes(feed: &str) -> [u8; 32] {
     let mut b = [0u8; 32];
     let src = feed.as_bytes();
@@ -53,13 +52,6 @@ fn derive_price_feed_pda(adapter_program: &Pubkey, feed: &str) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[&make_price_seed(), &feed_id_bytes(feed)], adapter_program)
 }
 
-#[derive(Clone)]
-struct AppState {
-    cluster: String,
-    feed: String,
-}
-
-/// Parse RedStone account data into (price, decimals, timestamp)
 fn parse_price_data(data: &[u8]) -> Result<(f64, u64, u8)> {
     if data.len() < 8 + 32 + 32 + 8 + 1 + 8 + 1 {
         return Err(anyhow!("account too small"));
@@ -87,8 +79,8 @@ fn parse_price_data(data: &[u8]) -> Result<(f64, u64, u8)> {
     Ok((price, timestamp, decimals))
 }
 
-async fn eth_price_handler(State(app_state): State<AppState>) -> impl IntoResponse {
-    match get_eth_price(&app_state).await {
+async fn eth_price_handler() -> impl IntoResponse {
+    match get_eth_price().await {
         Ok(price) => Json(price).into_response(),
         Err(e) =>
             (
@@ -98,13 +90,11 @@ async fn eth_price_handler(State(app_state): State<AppState>) -> impl IntoRespon
     }
 }
 
-async fn get_eth_price(app_state: &AppState) -> Result<PriceResponse> {
-    let rpc = RpcClient::new_with_commitment(
-        rpc_url(&app_state.cluster),
-        CommitmentConfig::confirmed()
-    );
-    let adapter_id = redstone_program_id(&app_state.cluster);
-    let (pda, _bump) = derive_price_feed_pda(&adapter_id, &app_state.feed);
+async fn get_eth_price() -> Result<PriceResponse> {
+    let cluster = "mainnet";
+    let rpc = RpcClient::new_with_commitment(rpc_url(cluster), CommitmentConfig::confirmed());
+    let adapter_id = redstone_program_id(cluster);
+    let (pda, _bump) = derive_price_feed_pda(&adapter_id, "ETH");
     let acct = rpc.get_account(&pda)?;
     let (price, timestamp, decimals) = parse_price_data(&acct.data)?;
     Ok(PriceResponse {
@@ -114,21 +104,11 @@ async fn get_eth_price(app_state: &AppState) -> Result<PriceResponse> {
     })
 }
 
-// Add the main function as the entry point
 #[tokio::main]
 async fn main() -> Result<()> {
-    let app_state = AppState {
-        cluster: "mainnet".to_string(),
-        feed: "ETH".to_string(),
-    };
-
     let app = Router::new()
         .route("/eth_price", get(eth_price_handler))
-        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any))
-        .with_state(app_state);
-
-    //let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    //Server::bind(&addr).serve(app.into_make_service()).await?;
+        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     axum::serve(listener, app).await.unwrap();
