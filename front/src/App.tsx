@@ -1,14 +1,22 @@
-import React from "react";
-import "./App.css";
 import PriceViewer from "./PriceViewer";
+import CssBaseline from "@mui/material/CssBaseline";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+
+const darkTheme = createTheme({
+  palette: {
+    mode: "dark",
+  },
+});
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <PriceViewer />
-      </header>
-    </div>
+    <>
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline enableColorScheme>
+          <PriceViewer />
+        </CssBaseline>
+      </ThemeProvider>
+    </>
   );
 }
 
